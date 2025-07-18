@@ -1,0 +1,173 @@
+version: '3.8'
+
+# Define networks first for better organization
+networks:
+  saas-network:
+    driver: bridge
+    name: saas-network
+    # Enable IPAM for better network management
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
+
+services:
+  # API Server - Exposed directly on port 4000
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - NODE_ENV=production
+    container_name: saas-api
+    env_file: .env
+    ports:
+      - "4000:4000"  # Expose API directly
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - REDIS_HOST=redis
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-your_secure_password}
+      - WPPCONNECT_URL=http://wppconnect:21465
+      - WPPCONNECT_SECRET=${WPPCONNECT_SECRET:-your_secure_secret}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      - JWT_SECRET=${JWT_SECRET:-your_jwt_secret}
+      - NODE_OPTIONS=--max_old_space_size=1024
+    volumes:
+      - ./sessions:/app/sessions
+      - ./logs:/app/logs
+      # Add read-only volume for production
+      - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+      wppconnect:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - saas-network
+    healthcheck:
+      test: ["CMD", "node", "/app/healthcheck.js"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # Redis (for rate limiting and caching)
+  redis:
+    image: redis:7-alpine
+    container_name: saas-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-your_secure_password}
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - saas-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-your_secure_password}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # WPPConnect Service - Built from source and exposed on port 21465
+  wppconnect:
+    build:
+      context: .
+      dockerfile: Dockerfile.wppconnect
+      args:
+        - NODE_ENV=production
+    container_name: saas-wppconnect
+    ports:
+      - "21465:21465"
+    environment:
+      - NODE_ENV=production
+      - PORT=21465
+      - SECRET_KEY=${WPPCONNECT_SECRET:-your_secure_secret}
+      - BROWSER_WS_ENDPOINT=
+      - LOG_LEVEL=error
+      - DEL_INSTANCE=true
+      - HEADLESS=true
+      - DISPLAY=:99
+      - EXEC_MULTI_DEVICE=true
+      - ENABLE_CORS=true
+      - ALLOWED_ORIGINS=*
+      - ENABLE_WEBSOCKET=true
+      - ENABLE_WHATSAPP_CHECK=true
+      - ENABLE_WHATSAPP_LIST=true
+      - ENABLE_WHATSAPP_SEND=true
+      - ENABLE_WHATSAPP_LOGOUT=true
+      - PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+    volumes:
+      - wppconnect_sessions:/home/supertokens/sessions
+      - wppconnect_tokens:/home/supertokens/tokens
+      # Add read-only volume for production
+      - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro
+    restart: unless-stopped
+    networks:
+      - saas-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:21465/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'  # WPPConnect needs more CPU
+          memory: 2G
+        reservations:
+          memory: 1G
+    # Add these capabilities for browser automation
+    cap_add:
+      - SYS_ADMIN
+    # Required for running Chrome in Docker
+    privileged: true
+    shm_size: '2gb'
+
+# Define volumes with proper labels for better management
+volumes:
+  redis_data:
+    name: saas-redis-data
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/redis
+  wppconnect_sessions:
+    name: saas-wppconnect-sessions
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/wppconnect/sessions
+  wppconnect_tokens:
+    name: saas-wppconnect-tokens
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/wppconnect/tokens

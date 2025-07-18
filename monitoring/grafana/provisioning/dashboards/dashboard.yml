@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+- name: 'Saas Dashboard'
+  orgId: 1
+  folder: 'Saas Monitoring'
+  type: file
+  disableDeletion: false
+  editable: true
+  options:
+    path: /etc/grafana/provisioning/dashboards
