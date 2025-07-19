@@ -23,104 +23,84 @@ services:
       - "443:443"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
-      - certbot_www:/var/www/certbot
-      - certbot_conf:/etc/letsencrypt
-      - /etc/ssl:/etc/ssl
-    environment:
-      - DOMAIN=fees-manager.netlify.app
-      - EMAIL=info@sprinthon.com
-      - USE_LETSENCRYPT=true  # Set to true in production with a real domain
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
     depends_on:
       - api
-      - wppconnect
-    restart: unless-stopped
+    restart: always
     networks:
       - saas-network
 
-  # API Server
+  # Certbot for SSL
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    volumes:
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    depends_on:
+      - nginx
+    networks:
+      - saas-network
+
+  # API Service
   api:
     build:
       context: .
-      dockerfile: Dockerfile.wppconnect
+      dockerfile: Dockerfile
     container_name: saas-api
-    env_file: .env
-    ports:
-      - "0.0.0.0:4000:4000"
+    expose:
+      - "3000"
     environment:
       - NODE_ENV=production
-      - PORT=4000
+      - PORT=3000
+      - BASE_URL=https://api.yourdomain.com
+      - CORS_ORIGINS=https://fees-manager.netlify.app,http://localhost:5173
+      - WPPCONNECT_SECRET=${WPPCONNECT_SECRET}
+      - WPPCONNECT_TOKEN=${WPPCONNECT_TOKEN}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
       - REDIS_HOST=redis
-      - WPPCONNECT_URL=http://wppconnect:21465
+      - SESSION_SECRET=${SESSION_SECRET}
+      - FIREBASE_SERVICE_ACCOUNT=${FIREBASE_SERVICE_ACCOUNT}
     volumes:
-      - app_sessions:/app/sessions
-      - app_logs:/app/logs
+      - ./logs:/app/logs
+      - ./sessions:/app/sessions
     depends_on:
-      redis:
-        condition: service_healthy
-      wppconnect:
-        condition: service_healthy
-    restart: unless-stopped
+      - redis
+    restart: always
     networks:
       - saas-network
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "--tries=1", "http://127.0.0.1:4000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
 
-  # Redis Service
+  # Redis
   redis:
-    image: redis:7-alpine
+    image: redis:alpine
     container_name: saas-redis
     command: redis-server --requirepass ${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
-    restart: unless-stopped
+    restart: always
     networks:
       - saas-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 5s
-    environment:
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
 
-  # WPPConnect Service
+  # WPPConnect
   wppconnect:
-    build:
-      context: .
-      dockerfile: Dockerfile.wppconnect
+    image: wppconnect-team/wppconnect:latest
     container_name: saas-wppconnect
     ports:
-      - "0.0.0.0:21465:21465"
+      - "21465:21465"
     environment:
-      - NODE_ENV=production
-      - PORT=21465
       - SECRET_KEY=${WPPCONNECT_SECRET}
       - TOKEN=${WPPCONNECT_TOKEN}
-      - BROWSER_WS_ENDPOINT=
-      - LOG_LEVEL=debug
-      - HEADLESS=true
-      - DISPLAY=:99
-      - EXEC_MULTI_DEVICE=true
+      - REDIS_URI=redis://:${REDIS_PASSWORD}@redis:6379/0
       - ENABLE_CORS=true
-      - ALLOWED_ORIGINS=*
+      - CORS_ORIGIN=*
+      - LOG_LEVEL=error
     volumes:
-      - wppconnect_sessions:/home/supertokens/sessions
-      - wppconnect_tokens:/home/supertokens/tokens
-    restart: unless-stopped
+      - wppconnect_sessions:/usr/src/app/sessions
+      - wppconnect_tokens:/usr/src/app/tokens
+    depends_on:
+      - redis
+    restart: always
     networks:
       - saas-network
-    cap_add:
-      - SYS_ADMIN
-    privileged: true
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "--tries=1", "http://127.0.0.1:21465/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s

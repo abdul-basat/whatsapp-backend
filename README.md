@@ -1,160 +1,127 @@
-# WhatsApp SaaS Backend
+# WhatsApp Backend Service
 
-Multi-tenant backend service for managing WhatsApp Web sessions via WPPConnect. Built with Node.js, Express, and Docker.
+A secure, scalable backend service for WhatsApp integration using WPPConnect, Node.js, and Docker.
 
 ## Features
 
-- 🔐 Per-user WhatsApp session isolation
-- 🔄 Supports WPPConnect (primary) and Baileys (legacy) drivers
+- � Secure WebSocket connections with WPPConnect
+- 🔄 Real-time QR code generation and session management
 - 🚀 Containerized with Docker for easy deployment
-- 🔄 WebSocket and REST API support
-- 📱 QR code-based authentication
+- 🔄 Automatic SSL certificate management with Let's Encrypt
+- � Redis-based session storage and caching
+- 🔒 JWT-based authentication
+- 🔄 WebSocket support for real-time updates
 
 ## Prerequisites
 
-- Docker & Docker Compose
-- Node.js 18+ (for local development)
-- Redis (for session storage and rate limiting)
+- Docker 20.10+ and Docker Compose 1.29+
+- A domain name (for production)
+- Ports 80 and 443 open on your server
 
-### Redis Installation & Troubleshooting (DigitalOcean/Ubuntu)
+## Quick Start
 
-If you are running the backend on a DigitalOcean droplet or Ubuntu server and encounter Redis connection errors (e.g., `ECONNREFUSED 127.0.0.1:6379`), follow these steps:
-
-1. **Install Redis:**
+1. Clone the repository:
    ```bash
-   sudo apt update
-   sudo apt install redis-server
+   git clone https://github.com/yourusername/whatsapp-backend.git
+   cd whatsapp-backend
    ```
-2. **Start Redis:**
-   ```bash
-   sudo systemctl start redis-server
-   ```
-3. **Enable Redis on boot:**
-   ```bash
-   sudo systemctl enable redis-server
-   ```
-4. **Check Redis status:**
-   ```bash
-   sudo systemctl status redis-server
-   ```
-   You should see `active (running)`.
 
-#### Fixing Docker Repository Issues (if needed)
-If you see errors about the Docker repository (e.g., `$Release` or missing Release file), edit the Docker repo source file:
-
-```bash
-sudo nano /etc/apt/sources.list.d/archive_uri-https_download_docker_com_linux_ubuntu-noble.list
-```
-Replace its contents with:
-```
-deb [arch=amd64] https://download.docker.com/linux/ubuntu noble stable
-```
-Then run:
-```bash
-sudo apt update
-```
-
-> **Note:** These are server/OS-level fixes and do not require any code changes or GitHub updates.
-
-## Environment Setup
-
-1. Copy `.env.example` to `.env`:
+2. Copy the example environment file and update with your settings:
    ```bash
    cp .env.example .env
+   nano .env  # Edit with your configuration
    ```
 
-2. Edit `.env` with your configuration:
-   ```env
-   # Server
-   PORT=4000
-   NODE_ENV=production
-   
-   # WPPConnect
-   WPPCONNECT_URL=http://wppconnect:21465
-   WPPCONNECT_TOKEN=your-secure-token
-   
-   # Redis
-   REDIS_HOST=redis
-   REDIS_PORT=6379
-   REDIS_PASSWORD=your-redis-password
-   
-   # CORS (comma-separated origins)
-   CORS_ORIGINS=https://your-frontend.com,http://localhost:5173
+3. Make the deployment script executable:
+   ```bash
+   chmod +x deploy.sh
    ```
 
-## Running with Docker
+4. Deploy the application:
+   ```bash
+   ./deploy.sh
+   ```
+
+## Environment Variables
+
+| Variable | Description | Required | Default |
+|----------|-------------|:--------:|:-------:|
+| `NODE_ENV` | Application environment | No | `production` |
+| `PORT` | API server port | No | `3000` |
+| `BASE_URL` | Base URL of your API | Yes | - |
+| `DOMAINS` | Comma-separated list of domains for SSL | Yes (prod) | - |
+| `EMAIL` | Email for Let's Encrypt | Yes (prod) | - |
+| `WPPCONNECT_SECRET` | Secret key for WPPConnect | Yes | - |
+| `WPPCONNECT_TOKEN` | Authentication token for WPPConnect | Yes | - |
+| `REDIS_PASSWORD` | Password for Redis | Yes | - |
+| `FIREBASE_SERVICE_ACCOUNT` | Base64-encoded Firebase service account | Yes | - |
+| `CORS_ORIGINS` | Allowed CORS origins | Yes | - |
+
+## Development
+
+For local development, create a `.env` file with:
+
+```env
+NODE_ENV=development
+PORT=3000
+BASE_URL=http://localhost:3000
+DOMAINS=localhost
+EMAIL=dev@example.com
+```
+
+Then start the services:
 
 ```bash
-docker compose up -d
+docker-compose -f docker-compose.prod.yml up --build
 ```
 
 ## API Endpoints
 
 ### Authentication
-- `POST /auth/connect` - Start a new WhatsApp session
-- `POST /auth/disconnect` - Terminate a session
-- `GET /auth/status?userId=<uid>` - Check session status
-- `GET /auth/qr?userId=<uid>` - Get QR code for pairing
 
-### Messaging
-- `POST /message/send` - Send WhatsApp messages
-  ```json
-  {
-    "userId": "user123",
-    "numbers": ["+1234567890"],
-    "message": "Hello!"
-  }
-  ```
+- `POST /api/auth/login` - User login
+- `POST /api/auth/refresh` - Refresh access token
+- `POST /api/auth/logout` - Invalidate session
 
-## Development
+### WhatsApp
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
+- `GET /api/whatsapp/qr` - Get QR code for WhatsApp Web
+- `POST /api/whatsapp/connect` - Start WhatsApp connection
+- `POST /api/whatsapp/disconnect` - Disconnect WhatsApp
+- `GET /api/whatsapp/status` - Get connection status
+- `POST /api/whatsapp/send` - Send message
 
-2. Start development server:
-   ```bash
-   npm run dev
-   ```
+## Monitoring
 
-## Deployment
+View logs:
+```bash
+docker-compose -f docker-compose.prod.yml logs -f
+```
 
-### DigitalOcean Droplet
-1. Clone repository to `/opt/whatsapp-saas`
-2. Set up environment variables in `.env`
-3. Start services:
-   ```bash
-   docker compose -f docker-compose.prod.yml up -d
-   ```
-
-### Required Volumes
-- `./sessions` - Stores WhatsApp session data
-- `redis_data` - Redis data files
-- `./certs` - SSL certificates (if using Let's Encrypt)
-
-## Troubleshooting
-
-1. **Session not persisting**
-   - Ensure `./sessions` directory is writable by Docker
-   - Check storage space on the host machine
-
-2. **QR code not generating**
-   - Verify WPPConnect container logs: `docker compose logs wppconnect`
-   - Check if ports are properly exposed
-
-3. **Redis connection issues**
-   - Verify `REDIS_HOST`, `REDIS_PORT`, and `REDIS_PASSWORD` in `.env`
-   - Check if Redis is running: `docker compose ps redis` or `sudo systemctl status redis-server`
-   - If you see `ECONNREFUSED 127.0.0.1:6379` or similar, ensure Redis is installed and running as described above.
+Health check:
+```
+GET /health
+```
 
 ## Security
 
-- 🔒 Always use HTTPS in production
-- 🔑 Rotate `WPPCONNECT_TOKEN` and `REDIS_PASSWORD` regularly
-- 🔄 Keep Docker images updated
-- 🔍 Monitor logs for suspicious activity
+- All API endpoints require authentication via JWT
+- Rate limiting is enabled
+- CORS is configured to only allow specified origins
+- All traffic is encrypted with TLS 1.2/1.3
+
+## Troubleshooting
+
+### QR Code Not Showing
+1. Check the browser console for errors
+2. Verify the WebSocket connection in the Network tab
+3. Check the backend logs for WPPConnect errors
+
+### SSL Certificate Issues
+1. Ensure port 80 is open for Let's Encrypt validation
+2. Verify your domain's DNS records point to the server
+3. Check the certbot logs for errors
 
 ## License
 
-MIT
+MIT License - See [LICENSE](LICENSE) for more information.
