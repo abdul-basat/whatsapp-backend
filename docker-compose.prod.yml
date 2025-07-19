@@ -50,6 +50,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.wppconnect
+      args:
+        - NODE_ENV=production
     container_name: saas-wppconnect
     ports:
       - "21465:21465"
