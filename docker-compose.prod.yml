@@ -17,6 +17,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      timeout: 600  # 10 minutes build timeout
     container_name: saas-api
     env_file: .env
     ports:
@@ -33,10 +34,16 @@ services:
       redis:
         condition: service_healthy
       wppconnect:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - saas-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--tries=1", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   # Redis Service
   redis:
@@ -53,6 +60,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+      start_period: 5s
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD}
 
@@ -61,6 +69,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.wppconnect
+      timeout: 1200  # 20 minutes build timeout
     container_name: saas-wppconnect
     ports:
       - "0.0.0.0:21465:21465"
