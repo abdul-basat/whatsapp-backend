@@ -1,34 +1,14 @@
-# Node modules
-node_modules/
-
-# Build output
-dist/
-build/
-
-# Environment variables
 .env
-.env.*
-!.env.example
-
-# Logs
-*.log
+*.pub
+*ssh-agent*
+.idea/
+.vscode/
+node_modules/
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-
-# OS generated files
-.DS_Store
-.DS_Store?
-
-# Misc
-*.swp
-
-# Ignore test environment files
-.env.test
-
-# Ignore local coverage reports
-coverage/
-
-# Ignore IDE files
-.vscode/
-.idea/ 
