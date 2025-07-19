@@ -4,10 +4,10 @@
   "description": "Express API server that proxies WhatsApp actions to WPPConnect server",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js",
+    "start": "node dist/server.js",
     "dev": "nodemon src/index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "echo 'No build step required' && exit 0"
+    "build": "mkdir -p dist && cp -r src/* dist/ && cp package*.json dist/"
   },
   "type": "module",
   "author": "",
