@@ -20,7 +20,7 @@ services:
     container_name: saas-api
     env_file: .env
     ports:
-      - "4000:4000"
+      - "0.0.0.0:4000:4000"
     environment:
       - NODE_ENV=production
       - PORT=4000
@@ -63,7 +63,7 @@ services:
       dockerfile: Dockerfile.wppconnect
     container_name: saas-wppconnect
     ports:
-      - "21465:21465"
+      - "0.0.0.0:21465:21465"
     environment:
       - NODE_ENV=production
       - PORT=21465
