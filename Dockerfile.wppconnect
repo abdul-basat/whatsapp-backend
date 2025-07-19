@@ -16,15 +16,6 @@ RUN apk add --no-cache \
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Copy package files first for better caching
-COPY package.json .
-
-# Generate lockfile if it doesn't exist and install dependencies
-RUN if [ ! -f pnpm-lock.yaml ]; then pnpm install; fi && \
-    pnpm install --prod && \
-    pnpm add sharp && \
-    pnpm store prune
-
 # Build stage
 FROM base AS build
 WORKDIR /usr/src/wpp-server
@@ -33,11 +24,13 @@ WORKDIR /usr/src/wpp-server
 RUN apk add --no-cache python3 make g++
 
 # Copy package files and install all dependencies
-COPY package.json .
-RUN pnpm install
+COPY package.json pnpm-lock.yaml* ./
+RUN pnpm install --frozen-lockfile
 
-# Copy source files and build
+# Copy source files
 COPY . .
+
+# Build the application
 RUN pnpm run build
 
 # Production stage
