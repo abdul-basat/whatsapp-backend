@@ -17,7 +17,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      timeout: 600  # 10 minutes build timeout
     container_name: saas-api
     env_file: .env
     ports:
@@ -69,7 +68,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.wppconnect
-      timeout: 1200  # 20 minutes build timeout
     container_name: saas-wppconnect
     ports:
       - "0.0.0.0:21465:21465"
