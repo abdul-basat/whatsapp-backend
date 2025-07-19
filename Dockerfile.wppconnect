@@ -24,8 +24,15 @@ WORKDIR /usr/src/wpp-server
 RUN apk add --no-cache python3 make g++
 
 # Copy package files and install all dependencies
-COPY package.json pnpm-lock.yaml* ./
-RUN pnpm install --frozen-lockfile
+COPY package.json .
+# Only copy pnpm-lock.yaml if it exists
+COPY pnpm-lock.yaml* ./
+# Install dependencies, generate lockfile if it doesn't exist
+RUN if [ -f pnpm-lock.yaml ]; then \
+      pnpm install --frozen-lockfile; \
+    else \
+      pnpm install; \
+    fi
 
 # Copy source files
 COPY . .
