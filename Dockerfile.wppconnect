@@ -1,51 +1,50 @@
-FROM node:22.17.1-alpine AS base
-WORKDIR /usr/src/wpp-server
-ENV NODE_ENV=production PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+FROM node:18-alpine
 
-# Install system dependencies
+# Install dependencies
 RUN apk add --no-cache \
-    vips-dev \
-    fftw-dev \
-    gcc \
-    g++ \
-    make \
-    libc6-compat \
     chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont \
+    xvfb \
+    x11vnc \
+    xterm \
+    xorg-server \
+    xf86-video-dummy \
+    dbus \
+    tzdata \
+    udev \
     && rm -rf /var/cache/apk/*
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Set environment variables
+ENV CHROME_BIN=/usr/bin/chromium-browser \
+    CHROME_PATH=/usr/lib/chromium/ \
+    DISPLAY=:99 \
+    SCREEN_WIDTH=1920 \
+    SCREEN_HEIGHT=1080 \
+    SCREEN_DEPTH=24
 
-# Build stage
-FROM base AS build
-WORKDIR /usr/src/wpp-server
+# Create app directory
+WORKDIR /app
 
-# Install build dependencies
-RUN apk add --no-cache python3 make g++
+# Copy package files
+COPY package*.json ./
 
-# Copy package files and install all dependencies
-COPY package.json .
-# Only copy pnpm-lock.yaml if it exists
-COPY pnpm-lock.yaml* ./
-# Install dependencies, generate lockfile if it doesn't exist
-RUN if [ -f pnpm-lock.yaml ]; then \
-      pnpm install --frozen-lockfile; \
-    else \
-      pnpm install; \
-    fi
+# Install dependencies
+RUN npm install --production
 
-# Copy source files
+# Copy source code
 COPY . .
 
-# Create non-root user and set permissions
-RUN addgroup -S appuser && adduser -S -G appuser appuser && \
-    chown -R appuser:appuser /usr/src/wpp-server
-
-USER appuser
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:21465/ || exit 1
-
+# Expose the port
 EXPOSE 21465
-ENTRYPOINT ["node", "src/index.js"]
+
+# Start script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+ENTRYPOINT ["docker-entrypoint.sh"]
+
+# Start the application
+CMD ["node", "src/index.js"]
