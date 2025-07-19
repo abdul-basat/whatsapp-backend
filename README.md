@@ -158,4 +158,3 @@ docker compose up -d
 ## License
 
 MIT
-"# whatsapp-backend" 
