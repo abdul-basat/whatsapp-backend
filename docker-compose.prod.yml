@@ -3,7 +3,13 @@ version: '3.8'
 networks:
   saas-network:
     driver: bridge
-    name: saas-network
+
+volumes:
+  redis_data:
+  wppconnect_sessions:
+  wppconnect_tokens:
+  app_sessions:
+  app_logs:
 
 services:
   # API Server
@@ -11,8 +17,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        - NODE_ENV=production
     container_name: saas-api
     env_file: .env
     ports:
@@ -23,8 +27,8 @@ services:
       - REDIS_HOST=redis
       - WPPCONNECT_URL=http://wppconnect:21465
     volumes:
-      - ./sessions:/app/sessions
-      - ./logs:/app/logs
+      - app_sessions:/app/sessions
+      - app_logs:/app/logs
     depends_on:
       redis:
         condition: service_healthy
@@ -45,7 +49,7 @@ services:
     networks:
       - saas-network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -57,8 +61,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.wppconnect
-      args:
-        - NODE_ENV=production
     container_name: saas-wppconnect
     ports:
       - "21465:21465"
@@ -74,8 +76,8 @@ services:
       - ENABLE_CORS=true
       - ALLOWED_ORIGINS=*
     volumes:
-      - ./data/wppconnect/sessions:/home/supertokens/sessions
-      - ./data/wppconnect/tokens:/home/supertokens/tokens
+      - wppconnect_sessions:/home/supertokens/sessions
+      - wppconnect_tokens:/home/supertokens/tokens
     restart: unless-stopped
     networks:
       - saas-network
@@ -83,7 +85,3 @@ services:
       - SYS_ADMIN
     privileged: true
     shm_size: '2gb'
-
-# Volumes
-volumes:
-  redis_data:
